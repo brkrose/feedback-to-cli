@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>feedback-to-cli — static HTML demo</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; max-width: 640px; margin: 60px auto; padding: 0 20px; line-height: 1.6; color: #1a1a1a; }
+    h1 { font-size: 32px; letter-spacing: -0.02em; }
+    button { padding: 10px 18px; border: 2px solid #1a1a1a; background: #f3c94f; font-weight: 600; cursor: pointer; }
+    section { margin: 40px 0; padding: 20px; border: 1px dashed #aaa; }
+  </style>
+</head>
+<body>
+  <h1>Demo page</h1>
+  <p>Click anywhere to drop a pin. Use the toolbar bottom-right to copy markdown.</p>
+  <button>Primary action</button>
+  <section>
+    <h2>A section</h2>
+    <p>Pins persist in localStorage scoped to this pathname.</p>
+  </section>
+  <script src="../../dist/feedback-to-cli.js" data-namespace="demo"></script>
+</body>
+</html>
