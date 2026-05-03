@@ -1,5 +1,5 @@
 import { createServer as createHttpServer } from "node:http";
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, existsSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 import { slugForPath, upsertPin, deletePin, composeMarkdown } from "./core.js";
 
@@ -66,6 +66,24 @@ export function createServer(cwd) {
         writePins(cwd, slug, page, next);
         res.writeHead(200, { ...CORS, "content-type": "application/json" });
         res.end(JSON.stringify({ ok: true, count: next.length }));
+      } catch (err) {
+        res.writeHead(400, CORS);
+        res.end(String(err.message ?? err));
+      }
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/clear") {
+      try {
+        const { page } = await readBody(req);
+        const slug = slugForPath(page);
+        const dir = join(cwd, DIR);
+        for (const ext of ["md", "json"]) {
+          const p = join(dir, `${slug}.${ext}`);
+          if (existsSync(p)) unlinkSync(p);
+        }
+        res.writeHead(200, { ...CORS, "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
       } catch (err) {
         res.writeHead(400, CORS);
         res.end(String(err.message ?? err));

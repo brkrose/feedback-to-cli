@@ -76,3 +76,27 @@ describe("POST /pin", () => {
     expect(existsSync(join(cwd, ".feedback-to-cli", "east-village_abc.md"))).toBe(true);
   });
 });
+
+describe("POST /clear", () => {
+  it("removes md and json for the given page", async () => {
+    const pin = { id: "p1", target: "<h1>", note: "x", ts: 1, x: 0, y: 0 };
+    await fetch(`${baseUrl}/pin`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ page: "/home", pin }) });
+    expect(existsSync(join(cwd, ".feedback-to-cli", "home.md"))).toBe(true);
+    const res = await fetch(`${baseUrl}/clear`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ page: "/home" }),
+    });
+    expect(res.status).toBe(200);
+    expect(existsSync(join(cwd, ".feedback-to-cli", "home.md"))).toBe(false);
+    expect(existsSync(join(cwd, ".feedback-to-cli", "home.json"))).toBe(false);
+  });
+  it("is a no-op when files don't exist", async () => {
+    const res = await fetch(`${baseUrl}/clear`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ page: "/never-saved" }),
+    });
+    expect(res.status).toBe(200);
+  });
+});
