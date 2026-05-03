@@ -11,7 +11,7 @@ You're vibe-coding with Claude Code, Cursor, or Copilot CLI. You see something o
 ## Quick start (script tag)
 
 ```html
-<script src="https://unpkg.com/feedback-to-cli@1"></script>
+<script src="https://unpkg.com/feedback-to-cli@0"></script>
 ```
 
 Drop that on any locally-served page. Click anywhere to pin. Toolbar bottom-right has on/off, clear, copy-all.
@@ -24,6 +24,8 @@ Pins persist in `localStorage` scoped to the pathname. Works in static HTML, Nex
 npx feedback-to-cli serve
 ```
 
+Or install it locally: `npm install -D feedback-to-cli` and run `npx feedback-to-cli serve` from a script.
+
 Run from your project root. The overlay auto-detects it once at boot. Every save also writes to `.feedback-to-cli/<page-slug>.md` in the cwd, ready for your assistant to read directly.
 
 ```
@@ -31,6 +33,8 @@ Run from your project root. The overlay auto-detects it once at boot. Every save
   home.md
   east-village_abc.md
 ```
+
+> Tip: add `.feedback-to-cli/` to your project's `.gitignore` so pinned feedback doesn't end up in commits.
 
 > Started the companion mid-session? Reload the page so the overlay picks it up.
 
@@ -42,7 +46,7 @@ Two `data-*` attributes on the script tag:
 
 ```html
 <script
-  src="https://unpkg.com/feedback-to-cli@1"
+  src="https://unpkg.com/feedback-to-cli@0"
   data-namespace="my-app"
   data-companion-port="9091"
 ></script>
