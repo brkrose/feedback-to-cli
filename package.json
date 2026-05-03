@@ -1,0 +1,28 @@
+{
+  "name": "feedback-to-cli",
+  "version": "0.1.0",
+  "description": "Click-to-pin feedback overlay for any localhost page. Drop in a script tag, copy markdown to your AI CLI.",
+  "type": "module",
+  "main": "./dist/feedback-to-cli.js",
+  "exports": { ".": "./dist/feedback-to-cli.js" },
+  "unpkg": "dist/feedback-to-cli.js",
+  "bin": { "feedback-to-cli": "./bin/cli.js" },
+  "files": ["dist", "bin", "src", "README.md", "LICENSE"],
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "keywords": ["feedback", "annotate", "claude", "cursor", "copilot", "localhost", "devtool"],
+  "author": "Brooke Bekoff",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/brkrose/feedback-to-cli.git" },
+  "engines": { "node": ">=20" },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "vitest": "^2.1.0",
+    "jsdom": "^25.0.0",
+    "@playwright/test": "^1.48.0"
+  }
+}
