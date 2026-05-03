@@ -1,5 +1,75 @@
 # feedback-to-cli
 
-Click-to-pin feedback overlay for any locally-served page. Copy markdown straight to your AI CLI.
+> Click-to-pin feedback on any localhost page. Copy the markdown straight to your AI CLI.
 
-> Full docs coming with v0.1.0 release. See `docs/specs/2026-05-03-feedback-to-cli-design.md` for the spec.
+You're vibe-coding with Claude Code, Cursor, or Copilot CLI. You see something off in the browser. Today you screenshot it, describe it in words, paste. Lossy. Slow.
+
+`feedback-to-cli` collapses that to: **click on the thing → type a sentence → "copy all" → paste markdown back to your CLI.** With the optional companion process, the paste step disappears too.
+
+---
+
+## Quick start (script tag)
+
+```html
+<script src="https://unpkg.com/feedback-to-cli@1"></script>
+```
+
+Drop that on any locally-served page. Click anywhere to pin. Toolbar bottom-right has on/off, clear, copy-all.
+
+Pins persist in `localStorage` scoped to the pathname. Works in static HTML, Next.js dev, Vite dev, Astro dev — anything that renders HTML on localhost.
+
+## Optional: companion server
+
+```bash
+npx feedback-to-cli serve
+```
+
+Run from your project root. The overlay auto-detects it once at boot. Every save also writes to `.feedback-to-cli/<page-slug>.md` in the cwd, ready for your assistant to read directly.
+
+```
+.feedback-to-cli/
+  home.md
+  east-village_abc.md
+```
+
+> Started the companion mid-session? Reload the page so the overlay picks it up.
+
+## Customization
+
+Two `data-*` attributes on the script tag:
+
+```html
+<script
+  src="https://unpkg.com/feedback-to-cli@1"
+  data-namespace="my-app"
+  data-companion-port="9091"
+></script>
+```
+
+That's the whole API.
+
+## Examples
+
+- `examples/static-html/` — drop-in script tag
+- `examples/nextjs/` — `app/layout.tsx` snippet
+- `examples/vite/` — `index.html` snippet
+
+## What lands in the clipboard
+
+```md
+# Feedback on /home
+
+Total pins: 2
+
+## Pin #1
+**Target:** `<button> List Yours →`
+**Note:** make this primary, not ghost
+
+## Pin #2
+**Target:** `<h1> NYC's only short-term rental search…`
+**Note:** _(empty)_
+```
+
+## License
+
+MIT © Brooke Bekoff
