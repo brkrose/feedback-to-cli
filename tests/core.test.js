@@ -14,6 +14,31 @@ describe("slugForPath", () => {
   it("treats empty string as root", () => {
     expect(slugForPath("")).toBe("root");
   });
+  it("collapses parent-directory segments", () => {
+    expect(slugForPath("/../etc/passwd")).toBe("___etc_passwd");
+  });
+  it("replaces backslashes (Windows-style separators)", () => {
+    expect(slugForPath("/foo\\bar")).toBe("foo_bar");
+  });
+  it("strips characters outside the safe set", () => {
+    expect(slugForPath("/a b?c#d")).toBe("a_b_c_d");
+  });
+  it("strips control and null characters", () => {
+    expect(slugForPath("/foo\u0000bar")).toBe("foo_bar");
+  });
+  it("clamps overly long slugs", () => {
+    const long = "/" + "a".repeat(500);
+    const slug = slugForPath(long);
+    expect(slug.length).toBeLessThanOrEqual(80);
+  });
+  it("replaces each unsafe character with underscore", () => {
+    expect(slugForPath("/???")).toBe("___");
+  });
+  it("rejects non-string input", () => {
+    expect(slugForPath(null)).toBe("root");
+    expect(slugForPath(undefined)).toBe("root");
+    expect(slugForPath(42)).toBe("root");
+  });
 });
 
 describe("makeKey", () => {

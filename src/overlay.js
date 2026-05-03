@@ -4,10 +4,10 @@
 
   // --- inlined core helpers (kept in sync with src/core.js) ---
   function slugForPath(p) {
-    if (!p || p === "/") return "root";
-    const stripped = p.replace(/^\//, "");
+    if (typeof p !== "string" || !p || p === "/") return "root";
+    var stripped = p.replace(/^\//, "");
     if (stripped === "") return "root";
-    return stripped.replace(/\//g, "_");
+    return stripped.replace(/[^a-z0-9_-]/gi, "_").slice(0, 80);
   }
 
   function makeKey(ns, p) {

@@ -8,11 +8,13 @@
  * @property {number} y
  */
 
+const SLUG_MAX = 80;
+
 export function slugForPath(pathname) {
-  if (!pathname || pathname === "/") return "root";
+  if (typeof pathname !== "string" || !pathname || pathname === "/") return "root";
   const stripped = pathname.replace(/^\//, "");
   if (stripped === "") return "root";
-  return stripped.replace(/\//g, "_");
+  return stripped.replace(/[^a-z0-9_-]/gi, "_").slice(0, SLUG_MAX);
 }
 
 export function makeKey(namespace, pathname) {
