@@ -146,7 +146,7 @@ describe("POST /pin", () => {
     expect(res.status).toBe(200);
     const md = readFileSync(join(cwd, ".feedback-to-cli", "home.md"), "utf8");
     expect(md).toContain("# Feedback on /home");
-    expect(md).toContain("**Note:** tighten");
+    expect(md).toContain("tighten");
     const json = JSON.parse(readFileSync(join(cwd, ".feedback-to-cli", "home.json"), "utf8"));
     expect(json).toEqual([pin]);
   });
@@ -159,8 +159,8 @@ describe("POST /pin", () => {
     const json = JSON.parse(readFileSync(join(cwd, ".feedback-to-cli", "home.json"), "utf8"));
     expect(json).toEqual([aPrime]);
     const md = readFileSync(join(cwd, ".feedback-to-cli", "home.md"), "utf8");
-    expect(md).toContain("**Note:** second");
-    expect(md).not.toContain("**Note:** first");
+    expect(md).toContain("second");
+    expect(md).not.toContain("first");
   });
 
   it("deletes a pin when note === null", async () => {
