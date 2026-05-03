@@ -34,6 +34,8 @@ Run from your project root. The overlay auto-detects it once at boot. Every save
 
 > Started the companion mid-session? Reload the page so the overlay picks it up.
 
+> The companion only accepts requests from `localhost`, `127.0.0.1`, and `[::1]` origins. If your dev server is on a custom hostname (e.g. `my-app.test`), open it via `http://localhost:<port>` while using this tool — pins from other origins fall back to `localStorage` only and won't reach disk.
+
 ## Customization
 
 Two `data-*` attributes on the script tag:
@@ -56,19 +58,22 @@ That's the whole API.
 
 ## What lands in the clipboard
 
-```md
+````md
 # Feedback on /home
 
 Total pins: 2
 
 ## Pin #1
 **Target:** `<button> List Yours →`
-**Note:** make this primary, not ghost
+**Note:**
+```
+make this primary, not ghost
+```
 
 ## Pin #2
 **Target:** `<h1> NYC's only short-term rental search…`
 **Note:** _(empty)_
-```
+````
 
 ## License
 
