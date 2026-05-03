@@ -7,5 +7,6 @@ export default defineConfig({
       ["tests/**", "node"],
     ],
     include: ["tests/**/*.test.js"],
+    setupFiles: ["./tests/setup-jsdom.js"],
   },
 });
