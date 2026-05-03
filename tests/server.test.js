@@ -26,9 +26,112 @@ describe("GET /ping", () => {
     const body = await res.json();
     expect(body).toEqual({ ok: true });
   });
-  it("includes CORS header", async () => {
+  it("echoes a localhost Origin in the CORS header", async () => {
+    const res = await fetch(`${baseUrl}/ping`, {
+      headers: { origin: "http://localhost:3000" },
+    });
+    expect(res.headers.get("access-control-allow-origin")).toBe(
+      "http://localhost:3000"
+    );
+  });
+  it("does not return CORS headers for hostile origins", async () => {
+    const res = await fetch(`${baseUrl}/ping`, {
+      headers: { origin: "https://evil.example.com" },
+    });
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+  });
+  it("allows requests with no Origin (e.g. curl, devtools)", async () => {
     const res = await fetch(`${baseUrl}/ping`);
-    expect(res.headers.get("access-control-allow-origin")).toBe("*");
+    expect(res.status).toBe(200);
+  });
+});
+
+describe("origin allowlist", () => {
+  it("rejects /pin from a hostile origin with 403", async () => {
+    const pin = { id: "p1", target: "<h1>", note: "x", ts: 1, x: 0, y: 0 };
+    const res = await fetch(`${baseUrl}/pin`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://evil.example.com",
+      },
+      body: JSON.stringify({ page: "/home", pin }),
+    });
+    expect(res.status).toBe(403);
+    expect(existsSync(join(cwd, ".feedback-to-cli", "home.json"))).toBe(false);
+  });
+
+  it("rejects /clear from a hostile origin with 403", async () => {
+    const res = await fetch(`${baseUrl}/clear`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://evil.example.com",
+      },
+      body: JSON.stringify({ page: "/home" }),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it("accepts /pin from http://localhost:5173", async () => {
+    const pin = { id: "p1", target: "<h1>", note: "x", ts: 1, x: 0, y: 0 };
+    const res = await fetch(`${baseUrl}/pin`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:5173",
+      },
+      body: JSON.stringify({ page: "/home", pin }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("accepts /pin from http://127.0.0.1:3000", async () => {
+    const pin = { id: "p1", target: "<h1>", note: "x", ts: 1, x: 0, y: 0 };
+    const res = await fetch(`${baseUrl}/pin`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://127.0.0.1:3000",
+      },
+      body: JSON.stringify({ page: "/home", pin }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("accepts /pin from http://[::1]:3000", async () => {
+    const pin = { id: "p1", target: "<h1>", note: "x", ts: 1, x: 0, y: 0 };
+    const res = await fetch(`${baseUrl}/pin`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://[::1]:3000",
+      },
+      body: JSON.stringify({ page: "/home", pin }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("accepts /pin with no Origin header", async () => {
+    const pin = { id: "p1", target: "<h1>", note: "x", ts: 1, x: 0, y: 0 };
+    const res = await fetch(`${baseUrl}/pin`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ page: "/home", pin }),
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it("accepts https://localhost (some dev servers use TLS)", async () => {
+    const res = await fetch(`${baseUrl}/pin`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "https://localhost:3000",
+      },
+      body: JSON.stringify({ page: "/home", pin: { id: "p1", target: "x", note: "x", ts: 1, x: 0, y: 0 } }),
+    });
+    expect(res.status).toBe(200);
   });
 });
 
@@ -74,6 +177,36 @@ describe("POST /pin", () => {
     const pin = { id: "p1", target: "<h1>", note: "x", ts: 1, x: 0, y: 0 };
     await fetch(`${baseUrl}/pin`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ page: "/east-village/abc", pin }) });
     expect(existsSync(join(cwd, ".feedback-to-cli", "east-village_abc.md"))).toBe(true);
+  });
+});
+
+describe("body size limits", () => {
+  it("rejects /pin bodies larger than 64 KB with 413", async () => {
+    const huge = "x".repeat(70 * 1024);
+    const pin = { id: "p1", target: "<h1>", note: huge, ts: 1, x: 0, y: 0 };
+    const res = await fetch(`${baseUrl}/pin`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+      },
+      body: JSON.stringify({ page: "/home", pin }),
+    });
+    expect(res.status).toBe(413);
+    expect(existsSync(join(cwd, ".feedback-to-cli", "home.json"))).toBe(false);
+  });
+
+  it("rejects /clear bodies larger than 64 KB with 413", async () => {
+    const huge = "/" + "a".repeat(70 * 1024);
+    const res = await fetch(`${baseUrl}/clear`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://localhost:3000",
+      },
+      body: JSON.stringify({ page: huge }),
+    });
+    expect(res.status).toBe(413);
   });
 });
 
