@@ -166,3 +166,60 @@ describe("drag threshold", () => {
     expect(document.querySelector(".f2c-region-preview")).toBeNull();
   });
 });
+
+function stubRectsFromInlineStyle() {
+  document.querySelectorAll("[style]").forEach((el) => {
+    const left = parseInt(el.style.left || "0", 10);
+    const top = parseInt(el.style.top || "0", 10);
+    const width = parseInt(el.style.width || "0", 10);
+    const height = parseInt(el.style.height || "0", 10);
+    el.getBoundingClientRect = () => ({
+      left, top, right: left + width, bottom: top + height,
+      width, height, x: left, y: top,
+    });
+  });
+}
+
+describe("region commit — container + contains", () => {
+  beforeEach(async () => {
+    await loadOverlay();
+  });
+
+  it("captures closest common ancestor and child tag list", () => {
+    document.body.insertAdjacentHTML("beforeend", `
+      <section id="about" style="position:absolute;left:100px;top:100px;width:400px;height:300px;">
+        <h2 style="position:absolute;left:120px;top:120px;width:200px;height:30px;">About</h2>
+        <p style="position:absolute;left:120px;top:160px;width:200px;height:60px;">Body copy</p>
+        <button style="position:absolute;left:120px;top:230px;width:80px;height:30px;">A</button>
+        <button style="position:absolute;left:210px;top:230px;width:80px;height:30px;">B</button>
+      </section>
+    `);
+    stubRectsFromInlineStyle();
+
+    fireEvent("pointerdown", { pageX: 110, pageY: 110, button: 0 });
+    fireEvent("pointermove", { pageX: 480, pageY: 380 });
+    fireEvent("pointerup", { pageX: 480, pageY: 380 });
+
+    const pin = window.__f2c.pins()[0];
+    expect(pin.kind).toBe("region");
+    expect(pin.target).toContain("section");
+    expect(pin.contains).toBe("<h2>, <p>, <button> ×2");
+  });
+
+  it("falls back to <body> + (empty region) when no elements intersect", () => {
+    fireEvent("pointerdown", { pageX: 50, pageY: 50, button: 0 });
+    fireEvent("pointermove", { pageX: 100, pageY: 100 });
+    fireEvent("pointerup", { pageX: 100, pageY: 100 });
+    const pin = window.__f2c.pins()[0];
+    expect(pin.target).toBe("<body>");
+    expect(pin.contains).toBe("(empty region)");
+  });
+
+  it("skips overlay's own elements", () => {
+    fireEvent("pointerdown", { pageX: 0, pageY: 0, button: 0 });
+    fireEvent("pointermove", { pageX: 2000, pageY: 2000 });
+    fireEvent("pointerup", { pageX: 2000, pageY: 2000 });
+    const pin = window.__f2c.pins()[0];
+    expect(pin.contains).not.toContain("f2c");
+  });
+});

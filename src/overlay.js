@@ -32,11 +32,33 @@
     lines.push(`Total pins: ${pins.length}`, "");
     pins.forEach((pin, i) => {
       lines.push(`## Pin #${i + 1}`);
-      lines.push(`**Target:** \`${pin.target}\``);
+      if (pin.kind === "region") {
+        lines.push(`**Container:** \`${pin.target}\``);
+        lines.push(`**Contains:** \`${pin.contains || "(empty region)"}\``);
+        lines.push(`**Size:** ${pin.w}×${pin.h} at (${pin.x}, ${pin.y})`);
+      } else {
+        lines.push(`**Target:** \`${pin.target}\``);
+      }
       lines.push(`**Note:** ${pin.note ? pin.note : "_(empty)_"}`);
       lines.push("");
     });
     return lines.join("\n").trimEnd() + "\n";
+  }
+
+  function summarizeContainsList(tags) {
+    if (!Array.isArray(tags) || tags.length === 0) return "(empty region)";
+    const counts = new Map();
+    for (const tag of tags) {
+      if (typeof tag !== "string" || tag.length === 0) continue;
+      counts.set(tag, (counts.get(tag) || 0) + 1);
+    }
+    if (counts.size === 0) return "(empty region)";
+    const entries = Array.from(counts.entries());
+    const visible = entries.slice(0, 8);
+    const overflow = entries.length - 8;
+    const parts = visible.map(([tag, n]) => (n > 1 ? `<${tag}> ×${n}` : `<${tag}>`));
+    if (overflow > 0) parts.push(`+${overflow} more`);
+    return parts.join(", ");
   }
 
   // --- config from script tag ---
@@ -600,7 +622,76 @@
     };
   }
 
+  var OVERLAY_SELECTOR = ".f2c-toolbar, .f2c-pin, .f2c-region, .f2c-region-tag, .f2c-popover, .f2c-toast, .f2c-pin-layer, .f2c-region-preview";
+
+  function intersects(r, box) {
+    return !(
+      r.right < box.x ||
+      r.left > box.x + box.w ||
+      r.bottom < box.y ||
+      r.top > box.y + box.h
+    );
+  }
+
+  function closestCommonAncestor(els) {
+    if (els.length === 1) return els[0].parentElement || document.body;
+    var ancestors = els.map(function (el) {
+      var chain = [];
+      var n = el;
+      while (n) {
+        chain.unshift(n);
+        n = n.parentElement;
+      }
+      return chain;
+    });
+    var common = document.body;
+    var minLen = Math.min.apply(null, ancestors.map(function (a) { return a.length; }));
+    for (var i = 0; i < minLen; i++) {
+      var candidate = ancestors[0][i];
+      if (ancestors.every(function (chain) { return chain[i] === candidate; })) {
+        common = candidate;
+      } else {
+        break;
+      }
+    }
+    return common;
+  }
+
+  function captureRegion(box) {
+    var matches = [];
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: function (el) {
+        if (el.closest && el.closest(OVERLAY_SELECTOR)) return NodeFilter.FILTER_REJECT;
+        if (el === document.body) return NodeFilter.FILTER_SKIP;
+        var rect = el.getBoundingClientRect();
+        if (intersects(rect, box)) return NodeFilter.FILTER_ACCEPT;
+        return NodeFilter.FILTER_SKIP;
+      },
+    });
+    var node = walker.nextNode();
+    while (node) {
+      matches.push(node);
+      node = walker.nextNode();
+    }
+    if (matches.length === 0) {
+      return { container: "<body>", contains: "(empty region)" };
+    }
+    var common = closestCommonAncestor(matches);
+    var directChildren = matches.filter(function (el) {
+      return el.parentElement === common;
+    });
+    var tagSource = directChildren.length > 0 ? directChildren : matches;
+    var tags = tagSource.map(function (el) {
+      return el.tagName ? el.tagName.toLowerCase() : "";
+    });
+    return {
+      container: targetSummary(common),
+      contains: summarizeContainsList(tags),
+    };
+  }
+
   function placeRegionPin(box, originTarget) {
+    var capture = captureRegion(box);
     var id = genId();
     var pin = {
       id: id,
@@ -608,8 +699,8 @@
       y: box.y,
       w: box.w,
       h: box.h,
-      target: "<body>",
-      contains: "(empty region)",
+      target: capture.container,
+      contains: capture.contains,
       note: "",
       ts: Date.now(),
       kind: "region",
@@ -618,6 +709,10 @@
     persist();
     syncToCompanion(pin);
     render();
+    var tagEl = pinLayer
+      ? pinLayer.querySelector('.f2c-region-tag[data-id="' + id + '"]')
+      : null;
+    openPopover(pin, tagEl);
   }
 
   function placePointPin(x, y, targetEl) {
