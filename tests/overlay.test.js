@@ -283,3 +283,37 @@ describe("popover anchor flip", () => {
     expect(pop.classList.contains("f2c-popover-flip")).toBe(true);
   });
 });
+
+describe("first-visit auto-arm", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("arms on first visit to a path", async () => {
+    await loadOverlay();
+    expect(document.body.classList.contains("f2c-armed")).toBe(true);
+    const armBtn = document.querySelector(".f2c-arm");
+    expect(armBtn.textContent).toBe("on");
+    expect(armBtn.classList.contains("f2c-armed-on")).toBe(true);
+  });
+
+  it("disarms on the second visit to the same path", async () => {
+    await loadOverlay();
+    delete window.__f2c;
+    document.body.innerHTML = "";
+    await loadOverlay();
+    expect(document.body.classList.contains("f2c-armed")).toBe(false);
+    const armBtn = document.querySelector(".f2c-arm");
+    expect(armBtn.textContent).toBe("off");
+    expect(armBtn.classList.contains("f2c-armed-on")).toBe(false);
+  });
+
+  it("clear button does not reset the seen flag", async () => {
+    await loadOverlay();
+    document.querySelector(".f2c-clear").click();
+    delete window.__f2c;
+    document.body.innerHTML = "";
+    await loadOverlay();
+    expect(document.body.classList.contains("f2c-armed")).toBe(false);
+  });
+});

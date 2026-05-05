@@ -14,6 +14,10 @@
     return `feedback-to-cli:${ns}:${p}`;
   }
 
+  function makeSeenKey(ns, p) {
+    return `feedback-to-cli:${ns}:${p}:seen`;
+  }
+
   function upsertPin(pins, pin) {
     const idx = pins.findIndex((p) => p.id === pin.id);
     if (idx === -1) return [...pins, pin];
@@ -87,7 +91,17 @@
   }
   var companionUp = false;
   var activePopoverId = null;
-  var armed = true;
+  var seenKey = makeSeenKey(namespace, pathname);
+  var hasSeen = false;
+  try {
+    hasSeen = !!localStorage.getItem(seenKey);
+  } catch (_) {
+    hasSeen = false;
+  }
+  var armed = !hasSeen;
+  try {
+    localStorage.setItem(seenKey, "1");
+  } catch (_) {}
 
   // --- persist + sync ---
   function persist() {
@@ -509,11 +523,13 @@
     toolbar = document.createElement("div");
     toolbar.className = "f2c-toolbar";
     toolbar.setAttribute("data-f2c-toolbar", "");
+    var armBtnClass = armed ? "f2c-arm f2c-armed-on" : "f2c-arm";
+    var armBtnText = armed ? "on" : "off";
     toolbar.innerHTML =
       '<span class="f2c-count">' +
       '\u{1F4AC} <span class="f2c-n">0</span>' +
       "</span>" +
-      '<button class="f2c-arm f2c-armed-on">on</button>' +
+      '<button class="' + armBtnClass + '">' + armBtnText + '</button>' +
       '<button class="f2c-clear">clear</button>' +
       '<button class="f2c-copy f2c-primary">copy all</button>';
 
