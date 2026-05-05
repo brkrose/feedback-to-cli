@@ -66,10 +66,18 @@ export function composeMarkdown(pathname, pins) {
   lines.push(`# Feedback on ${safePath}`, "");
   lines.push(`Total pins: ${pins.length}`, "");
   pins.forEach((pin, i) => {
-    const target = singleLine(pin.target).slice(0, TARGET_MAX);
     const note = stripControl(pin.note).slice(0, NOTE_MAX);
     lines.push(`## Pin #${i + 1}`);
-    lines.push(`**Target:** ${target ? inlineCode(target) : "_(unknown)_"}`);
+    if (pin.kind === "region") {
+      const container = singleLine(pin.target).slice(0, TARGET_MAX);
+      const contains = singleLine(pin.contains || "").slice(0, TARGET_MAX);
+      lines.push(`**Container:** ${container ? inlineCode(container) : "_(unknown)_"}`);
+      lines.push(`**Contains:** ${contains ? inlineCode(contains) : "_(empty)_"}`);
+      lines.push(`**Size:** ${pin.w}×${pin.h} at (${pin.x}, ${pin.y})`);
+    } else {
+      const target = singleLine(pin.target).slice(0, TARGET_MAX);
+      lines.push(`**Target:** ${target ? inlineCode(target) : "_(unknown)_"}`);
+    }
     if (note) {
       const fence = fenceFor(note);
       lines.push(`**Note:**`);
