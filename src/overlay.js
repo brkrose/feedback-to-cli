@@ -328,7 +328,7 @@
     document.querySelectorAll(".f2c-popover").forEach(function (p) {
       p.remove();
     });
-    document.querySelectorAll(".f2c-pin").forEach(function (p) {
+    document.querySelectorAll(".f2c-pin, .f2c-region-tag").forEach(function (p) {
       p.classList.remove("f2c-active");
     });
     activePopoverId = null;
@@ -412,21 +412,44 @@
   }
 
   function render() {
-    // Update toolbar count
     if (toolbar) {
       var countEl = toolbar.querySelector(".f2c-n");
       if (countEl) countEl.textContent = pins.length;
     }
-
-    // Re-render pin layer
     if (!pinLayer) return;
-    // Remove existing pin dots (not popovers, those live on body)
-    Array.from(pinLayer.querySelectorAll(".f2c-pin")).forEach(function (el) {
+    Array.from(pinLayer.querySelectorAll(".f2c-pin, .f2c-region")).forEach(function (el) {
       el.remove();
     });
-    pins.forEach(function (pin) {
-      pinLayer.appendChild(renderPinDot(pin));
+    pins.forEach(function (pin, i) {
+      if (pin.kind === "region") {
+        pinLayer.appendChild(renderRegion(pin, i + 1));
+      } else {
+        pinLayer.appendChild(renderPinDot(pin));
+      }
     });
+  }
+
+  function renderRegion(pin, n) {
+    var box = document.createElement("div");
+    box.className = "f2c-region";
+    box.dataset.id = pin.id;
+    box.style.left = pin.x + "px";
+    box.style.top = pin.y + "px";
+    box.style.width = pin.w + "px";
+    box.style.height = pin.h + "px";
+
+    var tag = document.createElement("div");
+    tag.className = "f2c-region-tag";
+    tag.dataset.id = pin.id;
+    tag.textContent = "#" + n;
+    tag.title = pin.note || "(no note)";
+    tag.addEventListener("click", function (e) {
+      e.stopPropagation();
+      openPopover(pin, tag);
+    });
+
+    box.appendChild(tag);
+    return box;
   }
 
   function flashToast(msg) {

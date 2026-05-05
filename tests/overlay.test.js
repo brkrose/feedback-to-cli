@@ -223,3 +223,40 @@ describe("region commit — container + contains", () => {
     expect(pin.contains).not.toContain("f2c");
   });
 });
+
+describe("region rendering", () => {
+  beforeEach(async () => {
+    await loadOverlay();
+  });
+
+  it("renders an .f2c-region with correct dimensions", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 250, pageY: 200 });
+    fireEvent("pointerup", { pageX: 250, pageY: 200 });
+    const region = document.querySelector(".f2c-region");
+    expect(region).not.toBeNull();
+    expect(region.style.left).toBe("100px");
+    expect(region.style.top).toBe("100px");
+    expect(region.style.width).toBe("150px");
+    expect(region.style.height).toBe("100px");
+  });
+
+  it("renders a corner tag with the pin number", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 250, pageY: 200 });
+    fireEvent("pointerup", { pageX: 250, pageY: 200 });
+    const tag = document.querySelector(".f2c-region-tag");
+    expect(tag).not.toBeNull();
+    expect(tag.textContent).toBe("#1");
+  });
+
+  it("clicking the tag opens a popover", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 250, pageY: 200 });
+    fireEvent("pointerup", { pageX: 250, pageY: 200 });
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(document.querySelector(".f2c-popover")).toBeNull();
+    document.querySelector(".f2c-region-tag").click();
+    expect(document.querySelector(".f2c-popover")).not.toBeNull();
+  });
+});
