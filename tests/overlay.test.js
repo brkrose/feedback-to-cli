@@ -64,7 +64,8 @@ describe("markdown export", () => {
     expect(md).toContain("# Feedback on /");
     expect(md).toContain("Total pins: 1");
     expect(md).toContain("**Target:** `<button> Save`");
-    expect(md).toContain("**Note:** make primary");
+    expect(md).toContain("**Note:**");
+    expect(md).toContain("make primary");
   });
 });
 

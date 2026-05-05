@@ -19,5 +19,6 @@ test("place a pin, copy markdown, see it in clipboard", async ({ page, context }
 
   const clip = await page.evaluate(() => navigator.clipboard.readText());
   expect(clip).toContain("# Feedback on /examples/static-html/index.html");
-  expect(clip).toContain("**Note:** make hero bolder");
+  expect(clip).toContain("**Note:**");
+  expect(clip).toContain("make hero bolder");
 });

@@ -30,20 +30,59 @@
     return pins.filter((p) => p.id !== id);
   }
 
+  const NOTE_MAX = 4000;
+  const TARGET_MAX = 200;
+  const CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g;
+
+  function stripControl(s) {
+    return typeof s === "string" ? s.replace(CONTROL_CHARS, "") : "";
+  }
+
+  function singleLine(s) {
+    return stripControl(s).replace(/[\r\n]+/g, " ").trim();
+  }
+
+  function fenceFor(s) {
+    const runs = s.match(/`+/g);
+    const longest = runs ? Math.max(...runs.map((r) => r.length)) : 0;
+    return "`".repeat(Math.max(3, longest + 1));
+  }
+
+  function inlineCode(s) {
+    const runs = s.match(/`+/g);
+    const longest = runs ? Math.max(...runs.map((r) => r.length)) : 0;
+    const fence = "`".repeat(Math.max(1, longest + 1));
+    const padded = s.startsWith("`") || s.endsWith("`") ? ` ${s} ` : s;
+    return `${fence}${padded}${fence}`;
+  }
+
   function composeMarkdown(pathname, pins) {
     const lines = [];
-    lines.push(`# Feedback on ${pathname}`, "");
+    const safePath = singleLine(pathname);
+    lines.push(`# Feedback on ${safePath}`, "");
     lines.push(`Total pins: ${pins.length}`, "");
     pins.forEach((pin, i) => {
+      const note = stripControl(pin.note).slice(0, NOTE_MAX);
       lines.push(`## Pin #${i + 1}`);
       if (pin.kind === "region") {
-        lines.push(`**Container:** \`${pin.target}\``);
-        lines.push(`**Contains:** \`${pin.contains || "(empty region)"}\``);
+        const container = singleLine(pin.target).slice(0, TARGET_MAX);
+        const contains = singleLine(pin.contains || "").slice(0, TARGET_MAX);
+        lines.push(`**Container:** ${container ? inlineCode(container) : "_(unknown)_"}`);
+        lines.push(`**Contains:** ${contains ? inlineCode(contains) : "_(empty)_"}`);
         lines.push(`**Size:** ${pin.w}×${pin.h} at (${pin.x}, ${pin.y})`);
       } else {
-        lines.push(`**Target:** \`${pin.target}\``);
+        const target = singleLine(pin.target).slice(0, TARGET_MAX);
+        lines.push(`**Target:** ${target ? inlineCode(target) : "_(unknown)_"}`);
       }
-      lines.push(`**Note:** ${pin.note ? pin.note : "_(empty)_"}`);
+      if (note) {
+        const fence = fenceFor(note);
+        lines.push(`**Note:**`);
+        lines.push(fence);
+        lines.push(note);
+        lines.push(fence);
+      } else {
+        lines.push(`**Note:** _(empty)_`);
+      }
       lines.push("");
     });
     return lines.join("\n").trimEnd() + "\n";
