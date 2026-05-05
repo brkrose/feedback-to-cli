@@ -260,3 +260,26 @@ describe("region rendering", () => {
     expect(document.querySelector(".f2c-popover")).not.toBeNull();
   });
 });
+
+describe("popover anchor flip", () => {
+  beforeEach(async () => {
+    await loadOverlay();
+    Object.defineProperty(window, "innerWidth", { value: 1000, configurable: true });
+  });
+
+  it("anchors popover to right of tag by default", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 250, pageY: 200 });
+    fireEvent("pointerup", { pageX: 250, pageY: 200 });
+    const pop = document.querySelector(".f2c-popover");
+    expect(pop.classList.contains("f2c-popover-flip")).toBe(false);
+  });
+
+  it("flips popover when region is near right edge", () => {
+    fireEvent("pointerdown", { pageX: 900, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 980, pageY: 200 });
+    fireEvent("pointerup", { pageX: 980, pageY: 200 });
+    const pop = document.querySelector(".f2c-popover");
+    expect(pop.classList.contains("f2c-popover-flip")).toBe(true);
+  });
+});

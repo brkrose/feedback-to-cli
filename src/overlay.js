@@ -295,6 +295,7 @@
       "}",
       ".f2c-region-tag:hover { transform: scale(1.15); }",
       ".f2c-region-tag.f2c-active { background: #ff7a2b; color: #0a0a0a; }",
+      ".f2c-popover-flip { transform: translate(-288px, -8px); }",
 
       "body.f2c-armed * { cursor: crosshair !important; }",
       "body.f2c-armed .f2c-pin, body.f2c-armed .f2c-popover,",
@@ -357,8 +358,18 @@
 
     var pop = document.createElement("div");
     pop.className = "f2c-popover";
-    pop.style.left = pin.x + "px";
-    pop.style.top = pin.y + "px";
+    var anchorX = pin.x;
+    var anchorY = pin.y;
+    pop.style.left = anchorX + "px";
+    pop.style.top = anchorY + "px";
+
+    var POPOVER_WIDTH = 280;
+    var GAP = 8;
+    var viewportRight = (typeof window !== "undefined" ? window.innerWidth : 1000);
+    var scrollX = (typeof window !== "undefined" ? window.scrollX || 0 : 0);
+    if (anchorX + GAP + POPOVER_WIDTH > scrollX + viewportRight) {
+      pop.classList.add("f2c-popover-flip");
+    }
 
     var savedLabel = pin.note ? "\u2713 saved" : "\u25cb new";
     var safeTarget = (pin.target || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
