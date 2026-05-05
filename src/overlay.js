@@ -507,10 +507,117 @@
   }
 
   function attachDocumentListeners() {
-    // Use a named ref so re-runs in test mode don't double-stack handlers
-    // (jsdom resets between imports, so this is just defensive)
-    document.addEventListener("click", handleDocClick);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
+    document.addEventListener("pointercancel", handlePointerCancel);
     document.addEventListener("keydown", handleDocKeydown);
+  }
+
+  var DRAG_THRESHOLD = 6;
+  var dragState = null;
+  var previewEl = null;
+
+  function isInOurUI(el) {
+    return !!(
+      el && el.closest &&
+      el.closest(".f2c-pin, .f2c-popover, .f2c-toolbar, .f2c-region, .f2c-region-tag")
+    );
+  }
+
+  function handlePointerDown(e) {
+    if (!armed) {
+      if (activePopoverId !== null && !isInOurUI(e.target)) closePopover();
+      return;
+    }
+    if (e.button !== 0) return;
+    if (isInOurUI(e.target)) return;
+    if (activePopoverId !== null) {
+      closePopover();
+      return;
+    }
+    dragState = {
+      startX: e.pageX || 0,
+      startY: e.pageY || 0,
+      pointerId: e.pointerId,
+      started: false,
+      originTarget: e.target,
+    };
+  }
+
+  function handlePointerMove(e) {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    var dx = (e.pageX || 0) - dragState.startX;
+    var dy = (e.pageY || 0) - dragState.startY;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (!dragState.started) {
+      if (dist <= DRAG_THRESHOLD) return;
+      dragState.started = true;
+      previewEl = document.createElement("div");
+      previewEl.className = "f2c-region-preview";
+      pinLayer.appendChild(previewEl);
+    }
+    var box = normalizeBox(dragState.startX, dragState.startY, e.pageX || 0, e.pageY || 0);
+    previewEl.style.left = box.x + "px";
+    previewEl.style.top = box.y + "px";
+    previewEl.style.width = box.w + "px";
+    previewEl.style.height = box.h + "px";
+  }
+
+  function handlePointerUp(e) {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    var startedDrag = dragState.started;
+    var startX = dragState.startX;
+    var startY = dragState.startY;
+    var originTarget = dragState.originTarget;
+    cleanupDrag();
+    if (!startedDrag) {
+      placePointPin(startX, startY, originTarget);
+      return;
+    }
+    var box = normalizeBox(startX, startY, e.pageX || 0, e.pageY || 0);
+    placeRegionPin(box, originTarget);
+  }
+
+  function handlePointerCancel() {
+    cleanupDrag();
+  }
+
+  function cleanupDrag() {
+    if (previewEl) {
+      previewEl.remove();
+      previewEl = null;
+    }
+    dragState = null;
+  }
+
+  function normalizeBox(x1, y1, x2, y2) {
+    return {
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      w: Math.abs(x2 - x1),
+      h: Math.abs(y2 - y1),
+    };
+  }
+
+  function placeRegionPin(box, originTarget) {
+    var id = genId();
+    var pin = {
+      id: id,
+      x: box.x,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+      target: "<body>",
+      contains: "(empty region)",
+      note: "",
+      ts: Date.now(),
+      kind: "region",
+    };
+    pins = upsertPin(pins, pin);
+    persist();
+    syncToCompanion(pin);
+    render();
   }
 
   function placePointPin(x, y, targetEl) {
@@ -554,7 +661,13 @@
   }
 
   function handleDocKeydown(e) {
-    if (e.key === "Escape") closePopover();
+    if (e.key === "Escape") {
+      if (dragState) {
+        cleanupDrag();
+        return;
+      }
+      closePopover();
+    }
   }
 
   function boot() {

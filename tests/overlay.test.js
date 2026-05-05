@@ -99,3 +99,70 @@ describe("companion sync", () => {
     expect(calls.filter((c) => c.endsWith("/pin"))).toHaveLength(0);
   });
 });
+
+function fireEvent(type, opts = {}) {
+  // jsdom lacks PointerEvent; fake it with MouseEvent + a pointerId field.
+  const Ctor = typeof PointerEvent !== "undefined" ? PointerEvent : MouseEvent;
+  const e = new Ctor(type, { bubbles: true, cancelable: true, button: opts.button || 0 });
+  Object.defineProperty(e, "pageX", { value: opts.pageX || 0 });
+  Object.defineProperty(e, "pageY", { value: opts.pageY || 0 });
+  Object.defineProperty(e, "pointerId", { value: opts.pointerId || 1 });
+  document.dispatchEvent(e);
+  return e;
+}
+
+describe("drag threshold", () => {
+  beforeEach(async () => {
+    await loadOverlay();
+  });
+
+  it("creates a point pin when drag distance ≤ 6px", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 104, pageY: 102 });
+    fireEvent("pointerup", { pageX: 104, pageY: 102 });
+    const pins = window.__f2c.pins();
+    expect(pins.length).toBe(1);
+    expect(pins[0].kind).toBe("point");
+  });
+
+  it("creates a region pin when drag distance > 6px", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 200, pageY: 180 });
+    fireEvent("pointerup", { pageX: 200, pageY: 180 });
+    const pins = window.__f2c.pins();
+    expect(pins.length).toBe(1);
+    expect(pins[0].kind).toBe("region");
+    expect(pins[0].w).toBe(100);
+    expect(pins[0].h).toBe(80);
+    expect(pins[0].x).toBe(100);
+    expect(pins[0].y).toBe(100);
+  });
+
+  it("normalizes top-left for drags going up-and-left", () => {
+    fireEvent("pointerdown", { pageX: 200, pageY: 200, button: 0 });
+    fireEvent("pointermove", { pageX: 100, pageY: 100 });
+    fireEvent("pointerup", { pageX: 100, pageY: 100 });
+    const pins = window.__f2c.pins();
+    expect(pins[0].x).toBe(100);
+    expect(pins[0].y).toBe(100);
+    expect(pins[0].w).toBe(100);
+    expect(pins[0].h).toBe(100);
+  });
+
+  it("Escape during drag aborts the region", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 200, pageY: 200 });
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    fireEvent("pointerup", { pageX: 200, pageY: 200 });
+    expect(window.__f2c.pins().length).toBe(0);
+    expect(document.querySelector(".f2c-region-preview")).toBeNull();
+  });
+
+  it("pointercancel during drag aborts the region", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 200, pageY: 200 });
+    fireEvent("pointercancel", { pageX: 200, pageY: 200 });
+    expect(window.__f2c.pins().length).toBe(0);
+    expect(document.querySelector(".f2c-region-preview")).toBeNull();
+  });
+});
