@@ -513,6 +513,28 @@
     document.addEventListener("keydown", handleDocKeydown);
   }
 
+  function placePointPin(x, y, targetEl) {
+    var id = genId();
+    var target = targetSummary(targetEl);
+    var pin = {
+      id: id,
+      x: x,
+      y: y,
+      target: target,
+      note: "",
+      ts: Date.now(),
+      kind: "point",
+    };
+    pins = upsertPin(pins, pin);
+    persist();
+    syncToCompanion(pin);
+    render();
+    var pinEl = pinLayer
+      ? pinLayer.querySelector('[data-id="' + id + '"]')
+      : null;
+    openPopover(pin, pinEl);
+  }
+
   function handleDocClick(e) {
     if (!armed) {
       closePopover();
@@ -520,7 +542,7 @@
     }
     if (
       e.target.closest &&
-      e.target.closest(".f2c-pin, .f2c-popover, .f2c-toolbar")
+      e.target.closest(".f2c-pin, .f2c-popover, .f2c-toolbar, .f2c-region, .f2c-region-tag")
     ) {
       return;
     }
@@ -528,26 +550,7 @@
       closePopover();
       return;
     }
-    // Place new pin
-    var id = genId();
-    var target = targetSummary(e.target);
-    var pin = {
-      id: id,
-      x: e.pageX || 0,
-      y: e.pageY || 0,
-      target: target,
-      note: "",
-      ts: Date.now(),
-    };
-    pins = upsertPin(pins, pin);
-    persist();
-    syncToCompanion(pin);
-    render();
-    // Open popover for the newly placed pin
-    var pinEl = pinLayer
-      ? pinLayer.querySelector('[data-id="' + id + '"]')
-      : null;
-    openPopover(pin, pinEl);
+    placePointPin(e.pageX || 0, e.pageY || 0, e.target);
   }
 
   function handleDocKeydown(e) {
