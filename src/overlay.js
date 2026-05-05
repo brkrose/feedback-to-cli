@@ -14,6 +14,10 @@
     return `feedback-to-cli:${ns}:${p}`;
   }
 
+  function makeSeenKey(ns, p) {
+    return `feedback-to-cli:${ns}:${p}:seen`;
+  }
+
   function upsertPin(pins, pin) {
     const idx = pins.findIndex((p) => p.id === pin.id);
     if (idx === -1) return [...pins, pin];
@@ -32,11 +36,33 @@
     lines.push(`Total pins: ${pins.length}`, "");
     pins.forEach((pin, i) => {
       lines.push(`## Pin #${i + 1}`);
-      lines.push(`**Target:** \`${pin.target}\``);
+      if (pin.kind === "region") {
+        lines.push(`**Container:** \`${pin.target}\``);
+        lines.push(`**Contains:** \`${pin.contains || "(empty region)"}\``);
+        lines.push(`**Size:** ${pin.w}×${pin.h} at (${pin.x}, ${pin.y})`);
+      } else {
+        lines.push(`**Target:** \`${pin.target}\``);
+      }
       lines.push(`**Note:** ${pin.note ? pin.note : "_(empty)_"}`);
       lines.push("");
     });
     return lines.join("\n").trimEnd() + "\n";
+  }
+
+  function summarizeContainsList(tags) {
+    if (!Array.isArray(tags) || tags.length === 0) return "(empty region)";
+    const counts = new Map();
+    for (const tag of tags) {
+      if (typeof tag !== "string" || tag.length === 0) continue;
+      counts.set(tag, (counts.get(tag) || 0) + 1);
+    }
+    if (counts.size === 0) return "(empty region)";
+    const entries = Array.from(counts.entries());
+    const visible = entries.slice(0, 8);
+    const overflow = entries.length - 8;
+    const parts = visible.map(([tag, n]) => (n > 1 ? `<${tag}> ×${n}` : `<${tag}>`));
+    if (overflow > 0) parts.push(`+${overflow} more`);
+    return parts.join(", ");
   }
 
   // --- config from script tag ---
@@ -65,7 +91,17 @@
   }
   var companionUp = false;
   var activePopoverId = null;
-  var armed = true;
+  var seenKey = makeSeenKey(namespace, pathname);
+  var hasSeen = false;
+  try {
+    hasSeen = !!localStorage.getItem(seenKey);
+  } catch (_) {
+    hasSeen = false;
+  }
+  var armed = !hasSeen;
+  try {
+    localStorage.setItem(seenKey, "1");
+  } catch (_) {}
 
   // --- persist + sync ---
   function persist() {
@@ -243,9 +279,42 @@
       "  pointer-events: none; z-index: 9998;",
       "}",
 
+      ".f2c-region {",
+      "  position: absolute; z-index: 9997;",
+      "  border: 2px dashed #4f2d65;",
+      "  background: rgba(79, 45, 101, 0.12);",
+      "  pointer-events: none;",
+      "  box-sizing: border-box;",
+      "}",
+      ".f2c-region-preview {",
+      "  position: absolute; z-index: 9997;",
+      "  border: 2px dashed #4f2d65;",
+      "  background: rgba(79, 45, 101, 0.12);",
+      "  pointer-events: none;",
+      "  box-sizing: border-box;",
+      "}",
+      ".f2c-region-tag {",
+      "  position: absolute;",
+      "  top: -2px; left: -2px;",
+      "  min-width: 22px; height: 18px;",
+      "  padding: 0 5px;",
+      "  background: #4f2d65; color: white;",
+      "  border: 2px solid #0a0a0a;",
+      "  font: 700 10px 'JetBrains Mono', monospace;",
+      "  display: flex; align-items: center; justify-content: center;",
+      "  box-shadow: 2px 2px 0 #0a0a0a;",
+      "  cursor: pointer;",
+      "  pointer-events: all;",
+      "  transition: transform 0.1s;",
+      "}",
+      ".f2c-region-tag:hover { transform: scale(1.15); }",
+      ".f2c-region-tag.f2c-active { background: #ff7a2b; color: #0a0a0a; }",
+      ".f2c-popover-flip { transform: translate(-288px, -8px); }",
+
       "body.f2c-armed * { cursor: crosshair !important; }",
       "body.f2c-armed .f2c-pin, body.f2c-armed .f2c-popover,",
-      "body.f2c-armed .f2c-toolbar, body.f2c-armed .f2c-toolbar * { cursor: pointer !important; }",
+      "body.f2c-armed .f2c-toolbar, body.f2c-armed .f2c-toolbar *,",
+      "body.f2c-armed .f2c-region-tag { cursor: pointer !important; }",
     ].join("\n");
     document.head.appendChild(style);
   }
@@ -274,7 +343,7 @@
     document.querySelectorAll(".f2c-popover").forEach(function (p) {
       p.remove();
     });
-    document.querySelectorAll(".f2c-pin").forEach(function (p) {
+    document.querySelectorAll(".f2c-pin, .f2c-region-tag").forEach(function (p) {
       p.classList.remove("f2c-active");
     });
     activePopoverId = null;
@@ -303,8 +372,18 @@
 
     var pop = document.createElement("div");
     pop.className = "f2c-popover";
-    pop.style.left = pin.x + "px";
-    pop.style.top = pin.y + "px";
+    var anchorX = pin.x;
+    var anchorY = pin.y;
+    pop.style.left = anchorX + "px";
+    pop.style.top = anchorY + "px";
+
+    var POPOVER_WIDTH = 280;
+    var GAP = 8;
+    var viewportRight = (typeof window !== "undefined" ? window.innerWidth : 1000);
+    var scrollX = (typeof window !== "undefined" ? window.scrollX || 0 : 0);
+    if (anchorX + GAP + POPOVER_WIDTH > scrollX + viewportRight) {
+      pop.classList.add("f2c-popover-flip");
+    }
 
     var savedLabel = pin.note ? "\u2713 saved" : "\u25cb new";
     var safeTarget = (pin.target || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -358,21 +437,44 @@
   }
 
   function render() {
-    // Update toolbar count
     if (toolbar) {
       var countEl = toolbar.querySelector(".f2c-n");
       if (countEl) countEl.textContent = pins.length;
     }
-
-    // Re-render pin layer
     if (!pinLayer) return;
-    // Remove existing pin dots (not popovers, those live on body)
-    Array.from(pinLayer.querySelectorAll(".f2c-pin")).forEach(function (el) {
+    Array.from(pinLayer.querySelectorAll(".f2c-pin, .f2c-region")).forEach(function (el) {
       el.remove();
     });
-    pins.forEach(function (pin) {
-      pinLayer.appendChild(renderPinDot(pin));
+    pins.forEach(function (pin, i) {
+      if (pin.kind === "region") {
+        pinLayer.appendChild(renderRegion(pin, i + 1));
+      } else {
+        pinLayer.appendChild(renderPinDot(pin));
+      }
     });
+  }
+
+  function renderRegion(pin, n) {
+    var box = document.createElement("div");
+    box.className = "f2c-region";
+    box.dataset.id = pin.id;
+    box.style.left = pin.x + "px";
+    box.style.top = pin.y + "px";
+    box.style.width = pin.w + "px";
+    box.style.height = pin.h + "px";
+
+    var tag = document.createElement("div");
+    tag.className = "f2c-region-tag";
+    tag.dataset.id = pin.id;
+    tag.textContent = "#" + n;
+    tag.title = pin.note || "(no note)";
+    tag.addEventListener("click", function (e) {
+      e.stopPropagation();
+      openPopover(pin, tag);
+    });
+
+    box.appendChild(tag);
+    return box;
   }
 
   function flashToast(msg) {
@@ -421,11 +523,13 @@
     toolbar = document.createElement("div");
     toolbar.className = "f2c-toolbar";
     toolbar.setAttribute("data-f2c-toolbar", "");
+    var armBtnClass = armed ? "f2c-arm f2c-armed-on" : "f2c-arm";
+    var armBtnText = armed ? "on" : "off";
     toolbar.innerHTML =
       '<span class="f2c-count">' +
       '\u{1F4AC} <span class="f2c-n">0</span>' +
       "</span>" +
-      '<button class="f2c-arm f2c-armed-on">on</button>' +
+      '<button class="' + armBtnClass + '">' + armBtnText + '</button>' +
       '<button class="f2c-clear">clear</button>' +
       '<button class="f2c-copy f2c-primary">copy all</button>';
 
@@ -475,10 +579,212 @@
   }
 
   function attachDocumentListeners() {
-    // Use a named ref so re-runs in test mode don't double-stack handlers
-    // (jsdom resets between imports, so this is just defensive)
-    document.addEventListener("click", handleDocClick);
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("pointermove", handlePointerMove);
+    document.addEventListener("pointerup", handlePointerUp);
+    document.addEventListener("pointercancel", handlePointerCancel);
     document.addEventListener("keydown", handleDocKeydown);
+  }
+
+  var DRAG_THRESHOLD = 6;
+  var dragState = null;
+  var previewEl = null;
+
+  function isInOurUI(el) {
+    return !!(
+      el && el.closest &&
+      el.closest(".f2c-pin, .f2c-popover, .f2c-toolbar, .f2c-region, .f2c-region-tag")
+    );
+  }
+
+  function handlePointerDown(e) {
+    if (!armed) {
+      if (activePopoverId !== null && !isInOurUI(e.target)) closePopover();
+      return;
+    }
+    if (e.button !== 0) return;
+    if (isInOurUI(e.target)) return;
+    if (activePopoverId !== null) {
+      closePopover();
+      return;
+    }
+    dragState = {
+      startX: e.pageX || 0,
+      startY: e.pageY || 0,
+      pointerId: e.pointerId,
+      started: false,
+      originTarget: e.target,
+    };
+  }
+
+  function handlePointerMove(e) {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    var dx = (e.pageX || 0) - dragState.startX;
+    var dy = (e.pageY || 0) - dragState.startY;
+    var dist = Math.sqrt(dx * dx + dy * dy);
+    if (!dragState.started) {
+      if (dist <= DRAG_THRESHOLD) return;
+      dragState.started = true;
+      previewEl = document.createElement("div");
+      previewEl.className = "f2c-region-preview";
+      pinLayer.appendChild(previewEl);
+    }
+    var box = normalizeBox(dragState.startX, dragState.startY, e.pageX || 0, e.pageY || 0);
+    previewEl.style.left = box.x + "px";
+    previewEl.style.top = box.y + "px";
+    previewEl.style.width = box.w + "px";
+    previewEl.style.height = box.h + "px";
+  }
+
+  function handlePointerUp(e) {
+    if (!dragState || e.pointerId !== dragState.pointerId) return;
+    var startedDrag = dragState.started;
+    var startX = dragState.startX;
+    var startY = dragState.startY;
+    var originTarget = dragState.originTarget;
+    cleanupDrag();
+    if (!startedDrag) {
+      placePointPin(startX, startY, originTarget);
+      return;
+    }
+    var box = normalizeBox(startX, startY, e.pageX || 0, e.pageY || 0);
+    placeRegionPin(box, originTarget);
+  }
+
+  function handlePointerCancel() {
+    cleanupDrag();
+  }
+
+  function cleanupDrag() {
+    if (previewEl) {
+      previewEl.remove();
+      previewEl = null;
+    }
+    dragState = null;
+  }
+
+  function normalizeBox(x1, y1, x2, y2) {
+    return {
+      x: Math.min(x1, x2),
+      y: Math.min(y1, y2),
+      w: Math.abs(x2 - x1),
+      h: Math.abs(y2 - y1),
+    };
+  }
+
+  var OVERLAY_SELECTOR = ".f2c-toolbar, .f2c-pin, .f2c-region, .f2c-region-tag, .f2c-popover, .f2c-toast, .f2c-pin-layer, .f2c-region-preview";
+
+  function intersects(r, box) {
+    return !(
+      r.right < box.x ||
+      r.left > box.x + box.w ||
+      r.bottom < box.y ||
+      r.top > box.y + box.h
+    );
+  }
+
+  function closestCommonAncestor(els) {
+    if (els.length === 1) return els[0].parentElement || document.body;
+    var ancestors = els.map(function (el) {
+      var chain = [];
+      var n = el;
+      while (n) {
+        chain.unshift(n);
+        n = n.parentElement;
+      }
+      return chain;
+    });
+    var common = document.body;
+    var minLen = Math.min.apply(null, ancestors.map(function (a) { return a.length; }));
+    for (var i = 0; i < minLen; i++) {
+      var candidate = ancestors[0][i];
+      if (ancestors.every(function (chain) { return chain[i] === candidate; })) {
+        common = candidate;
+      } else {
+        break;
+      }
+    }
+    return common;
+  }
+
+  function captureRegion(box) {
+    var matches = [];
+    var walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT, {
+      acceptNode: function (el) {
+        if (el.closest && el.closest(OVERLAY_SELECTOR)) return NodeFilter.FILTER_REJECT;
+        if (el === document.body) return NodeFilter.FILTER_SKIP;
+        var rect = el.getBoundingClientRect();
+        if (intersects(rect, box)) return NodeFilter.FILTER_ACCEPT;
+        return NodeFilter.FILTER_SKIP;
+      },
+    });
+    var node = walker.nextNode();
+    while (node) {
+      matches.push(node);
+      node = walker.nextNode();
+    }
+    if (matches.length === 0) {
+      return { container: "<body>", contains: "(empty region)" };
+    }
+    var common = closestCommonAncestor(matches);
+    var directChildren = matches.filter(function (el) {
+      return el.parentElement === common;
+    });
+    var tagSource = directChildren.length > 0 ? directChildren : matches;
+    var tags = tagSource.map(function (el) {
+      return el.tagName ? el.tagName.toLowerCase() : "";
+    });
+    return {
+      container: targetSummary(common),
+      contains: summarizeContainsList(tags),
+    };
+  }
+
+  function placeRegionPin(box, originTarget) {
+    var capture = captureRegion(box);
+    var id = genId();
+    var pin = {
+      id: id,
+      x: box.x,
+      y: box.y,
+      w: box.w,
+      h: box.h,
+      target: capture.container,
+      contains: capture.contains,
+      note: "",
+      ts: Date.now(),
+      kind: "region",
+    };
+    pins = upsertPin(pins, pin);
+    persist();
+    syncToCompanion(pin);
+    render();
+    var tagEl = pinLayer
+      ? pinLayer.querySelector('.f2c-region-tag[data-id="' + id + '"]')
+      : null;
+    openPopover(pin, tagEl);
+  }
+
+  function placePointPin(x, y, targetEl) {
+    var id = genId();
+    var target = targetSummary(targetEl);
+    var pin = {
+      id: id,
+      x: x,
+      y: y,
+      target: target,
+      note: "",
+      ts: Date.now(),
+      kind: "point",
+    };
+    pins = upsertPin(pins, pin);
+    persist();
+    syncToCompanion(pin);
+    render();
+    var pinEl = pinLayer
+      ? pinLayer.querySelector('[data-id="' + id + '"]')
+      : null;
+    openPopover(pin, pinEl);
   }
 
   function handleDocClick(e) {
@@ -488,7 +794,7 @@
     }
     if (
       e.target.closest &&
-      e.target.closest(".f2c-pin, .f2c-popover, .f2c-toolbar")
+      e.target.closest(".f2c-pin, .f2c-popover, .f2c-toolbar, .f2c-region, .f2c-region-tag")
     ) {
       return;
     }
@@ -496,30 +802,17 @@
       closePopover();
       return;
     }
-    // Place new pin
-    var id = genId();
-    var target = targetSummary(e.target);
-    var pin = {
-      id: id,
-      x: e.pageX || 0,
-      y: e.pageY || 0,
-      target: target,
-      note: "",
-      ts: Date.now(),
-    };
-    pins = upsertPin(pins, pin);
-    persist();
-    syncToCompanion(pin);
-    render();
-    // Open popover for the newly placed pin
-    var pinEl = pinLayer
-      ? pinLayer.querySelector('[data-id="' + id + '"]')
-      : null;
-    openPopover(pin, pinEl);
+    placePointPin(e.pageX || 0, e.pageY || 0, e.target);
   }
 
   function handleDocKeydown(e) {
-    if (e.key === "Escape") closePopover();
+    if (e.key === "Escape") {
+      if (dragState) {
+        cleanupDrag();
+        return;
+      }
+      closePopover();
+    }
   }
 
   function boot() {

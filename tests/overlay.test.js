@@ -99,3 +99,221 @@ describe("companion sync", () => {
     expect(calls.filter((c) => c.endsWith("/pin"))).toHaveLength(0);
   });
 });
+
+function fireEvent(type, opts = {}) {
+  // jsdom lacks PointerEvent; fake it with MouseEvent + a pointerId field.
+  const Ctor = typeof PointerEvent !== "undefined" ? PointerEvent : MouseEvent;
+  const e = new Ctor(type, { bubbles: true, cancelable: true, button: opts.button || 0 });
+  Object.defineProperty(e, "pageX", { value: opts.pageX || 0 });
+  Object.defineProperty(e, "pageY", { value: opts.pageY || 0 });
+  Object.defineProperty(e, "pointerId", { value: opts.pointerId || 1 });
+  document.dispatchEvent(e);
+  return e;
+}
+
+describe("drag threshold", () => {
+  beforeEach(async () => {
+    await loadOverlay();
+  });
+
+  it("creates a point pin when drag distance ≤ 6px", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 104, pageY: 102 });
+    fireEvent("pointerup", { pageX: 104, pageY: 102 });
+    const pins = window.__f2c.pins();
+    expect(pins.length).toBe(1);
+    expect(pins[0].kind).toBe("point");
+  });
+
+  it("creates a region pin when drag distance > 6px", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 200, pageY: 180 });
+    fireEvent("pointerup", { pageX: 200, pageY: 180 });
+    const pins = window.__f2c.pins();
+    expect(pins.length).toBe(1);
+    expect(pins[0].kind).toBe("region");
+    expect(pins[0].w).toBe(100);
+    expect(pins[0].h).toBe(80);
+    expect(pins[0].x).toBe(100);
+    expect(pins[0].y).toBe(100);
+  });
+
+  it("normalizes top-left for drags going up-and-left", () => {
+    fireEvent("pointerdown", { pageX: 200, pageY: 200, button: 0 });
+    fireEvent("pointermove", { pageX: 100, pageY: 100 });
+    fireEvent("pointerup", { pageX: 100, pageY: 100 });
+    const pins = window.__f2c.pins();
+    expect(pins[0].x).toBe(100);
+    expect(pins[0].y).toBe(100);
+    expect(pins[0].w).toBe(100);
+    expect(pins[0].h).toBe(100);
+  });
+
+  it("Escape during drag aborts the region", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 200, pageY: 200 });
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    fireEvent("pointerup", { pageX: 200, pageY: 200 });
+    expect(window.__f2c.pins().length).toBe(0);
+    expect(document.querySelector(".f2c-region-preview")).toBeNull();
+  });
+
+  it("pointercancel during drag aborts the region", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 200, pageY: 200 });
+    fireEvent("pointercancel", { pageX: 200, pageY: 200 });
+    expect(window.__f2c.pins().length).toBe(0);
+    expect(document.querySelector(".f2c-region-preview")).toBeNull();
+  });
+});
+
+function stubRectsFromInlineStyle() {
+  document.querySelectorAll("[style]").forEach((el) => {
+    const left = parseInt(el.style.left || "0", 10);
+    const top = parseInt(el.style.top || "0", 10);
+    const width = parseInt(el.style.width || "0", 10);
+    const height = parseInt(el.style.height || "0", 10);
+    el.getBoundingClientRect = () => ({
+      left, top, right: left + width, bottom: top + height,
+      width, height, x: left, y: top,
+    });
+  });
+}
+
+describe("region commit — container + contains", () => {
+  beforeEach(async () => {
+    await loadOverlay();
+  });
+
+  it("captures closest common ancestor and child tag list", () => {
+    document.body.insertAdjacentHTML("beforeend", `
+      <section id="about" style="position:absolute;left:100px;top:100px;width:400px;height:300px;">
+        <h2 style="position:absolute;left:120px;top:120px;width:200px;height:30px;">About</h2>
+        <p style="position:absolute;left:120px;top:160px;width:200px;height:60px;">Body copy</p>
+        <button style="position:absolute;left:120px;top:230px;width:80px;height:30px;">A</button>
+        <button style="position:absolute;left:210px;top:230px;width:80px;height:30px;">B</button>
+      </section>
+    `);
+    stubRectsFromInlineStyle();
+
+    fireEvent("pointerdown", { pageX: 110, pageY: 110, button: 0 });
+    fireEvent("pointermove", { pageX: 480, pageY: 380 });
+    fireEvent("pointerup", { pageX: 480, pageY: 380 });
+
+    const pin = window.__f2c.pins()[0];
+    expect(pin.kind).toBe("region");
+    expect(pin.target).toContain("section");
+    expect(pin.contains).toBe("<h2>, <p>, <button> ×2");
+  });
+
+  it("falls back to <body> + (empty region) when no elements intersect", () => {
+    fireEvent("pointerdown", { pageX: 50, pageY: 50, button: 0 });
+    fireEvent("pointermove", { pageX: 100, pageY: 100 });
+    fireEvent("pointerup", { pageX: 100, pageY: 100 });
+    const pin = window.__f2c.pins()[0];
+    expect(pin.target).toBe("<body>");
+    expect(pin.contains).toBe("(empty region)");
+  });
+
+  it("skips overlay's own elements", () => {
+    fireEvent("pointerdown", { pageX: 0, pageY: 0, button: 0 });
+    fireEvent("pointermove", { pageX: 2000, pageY: 2000 });
+    fireEvent("pointerup", { pageX: 2000, pageY: 2000 });
+    const pin = window.__f2c.pins()[0];
+    expect(pin.contains).not.toContain("f2c");
+  });
+});
+
+describe("region rendering", () => {
+  beforeEach(async () => {
+    await loadOverlay();
+  });
+
+  it("renders an .f2c-region with correct dimensions", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 250, pageY: 200 });
+    fireEvent("pointerup", { pageX: 250, pageY: 200 });
+    const region = document.querySelector(".f2c-region");
+    expect(region).not.toBeNull();
+    expect(region.style.left).toBe("100px");
+    expect(region.style.top).toBe("100px");
+    expect(region.style.width).toBe("150px");
+    expect(region.style.height).toBe("100px");
+  });
+
+  it("renders a corner tag with the pin number", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 250, pageY: 200 });
+    fireEvent("pointerup", { pageX: 250, pageY: 200 });
+    const tag = document.querySelector(".f2c-region-tag");
+    expect(tag).not.toBeNull();
+    expect(tag.textContent).toBe("#1");
+  });
+
+  it("clicking the tag opens a popover", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 250, pageY: 200 });
+    fireEvent("pointerup", { pageX: 250, pageY: 200 });
+    document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    expect(document.querySelector(".f2c-popover")).toBeNull();
+    document.querySelector(".f2c-region-tag").click();
+    expect(document.querySelector(".f2c-popover")).not.toBeNull();
+  });
+});
+
+describe("popover anchor flip", () => {
+  beforeEach(async () => {
+    await loadOverlay();
+    Object.defineProperty(window, "innerWidth", { value: 1000, configurable: true });
+  });
+
+  it("anchors popover to right of tag by default", () => {
+    fireEvent("pointerdown", { pageX: 100, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 250, pageY: 200 });
+    fireEvent("pointerup", { pageX: 250, pageY: 200 });
+    const pop = document.querySelector(".f2c-popover");
+    expect(pop.classList.contains("f2c-popover-flip")).toBe(false);
+  });
+
+  it("flips popover when region is near right edge", () => {
+    fireEvent("pointerdown", { pageX: 900, pageY: 100, button: 0 });
+    fireEvent("pointermove", { pageX: 980, pageY: 200 });
+    fireEvent("pointerup", { pageX: 980, pageY: 200 });
+    const pop = document.querySelector(".f2c-popover");
+    expect(pop.classList.contains("f2c-popover-flip")).toBe(true);
+  });
+});
+
+describe("first-visit auto-arm", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("arms on first visit to a path", async () => {
+    await loadOverlay();
+    expect(document.body.classList.contains("f2c-armed")).toBe(true);
+    const armBtn = document.querySelector(".f2c-arm");
+    expect(armBtn.textContent).toBe("on");
+    expect(armBtn.classList.contains("f2c-armed-on")).toBe(true);
+  });
+
+  it("disarms on the second visit to the same path", async () => {
+    await loadOverlay();
+    delete window.__f2c;
+    document.body.innerHTML = "";
+    await loadOverlay();
+    expect(document.body.classList.contains("f2c-armed")).toBe(false);
+    const armBtn = document.querySelector(".f2c-arm");
+    expect(armBtn.textContent).toBe("off");
+    expect(armBtn.classList.contains("f2c-armed-on")).toBe(false);
+  });
+
+  it("clear button does not reset the seen flag", async () => {
+    await loadOverlay();
+    document.querySelector(".f2c-clear").click();
+    delete window.__f2c;
+    document.body.innerHTML = "";
+    await loadOverlay();
+    expect(document.body.classList.contains("f2c-armed")).toBe(false);
+  });
+});

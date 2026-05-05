@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { slugForPath, makeKey, upsertPin, deletePin, composeMarkdown } from "../src/core.js";
+import { slugForPath, makeKey, upsertPin, deletePin, composeMarkdown, summarizeContainsList, makeSeenKey } from "../src/core.js";
 
 describe("slugForPath", () => {
   it("returns 'root' for /", () => {
@@ -167,5 +167,86 @@ describe("composeMarkdown sanitization", () => {
     ];
     const md = composeMarkdown("/home", pins);
     expect(md).toMatch(/\*\*Target:\*\* ``[^\n]*<code>`evil`[^\n]*``/);
+  });
+});
+
+describe("summarizeContainsList", () => {
+  it("returns '(empty region)' for empty input", () => {
+    expect(summarizeContainsList([])).toBe("(empty region)");
+  });
+  it("formats a single tag", () => {
+    expect(summarizeContainsList(["h2"])).toBe("<h2>");
+  });
+  it("dedupes identical tags with ×N suffix", () => {
+    expect(summarizeContainsList(["button", "button", "button"])).toBe("<button> ×3");
+  });
+  it("preserves first-seen order across mixed tags", () => {
+    expect(summarizeContainsList(["h2", "p", "button", "button"])).toBe("<h2>, <p>, <button> ×2");
+  });
+  it("caps at 8 unique tags with '+N more' overflow", () => {
+    const tags = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+    expect(summarizeContainsList(tags)).toBe("<a>, <b>, <c>, <d>, <e>, <f>, <g>, <h>, +2 more");
+  });
+  it("ignores non-string entries", () => {
+    expect(summarizeContainsList(["h2", null, undefined, "p"])).toBe("<h2>, <p>");
+  });
+});
+
+describe("makeSeenKey", () => {
+  it("formats namespace + pathname + :seen suffix", () => {
+    expect(makeSeenKey("default", "/home")).toBe("feedback-to-cli:default:/home:seen");
+  });
+  it("does not collide with the pins key", () => {
+    const seen = makeSeenKey("app", "/about");
+    const pins = makeKey("app", "/about");
+    expect(seen).not.toBe(pins);
+    expect(seen.startsWith(pins)).toBe(true);
+  });
+});
+
+describe("composeMarkdown — region pins", () => {
+  const pointPin = {
+    id: "p1", x: 10, y: 20, target: "<button> Buy",
+    note: "make primary", ts: 1, kind: "point",
+  };
+  const regionPin = {
+    id: "r1", x: 140, y: 480, w: 320, h: 180,
+    target: "<section> About us",
+    contains: "<h2>, <p>, <button> ×2",
+    note: "2-col grid on desktop", ts: 2, kind: "region",
+  };
+
+  it("renders point pin in the existing shape", () => {
+    const md = composeMarkdown("/home", [pointPin]);
+    expect(md).toContain("## Pin #1");
+    expect(md).toContain("**Target:** `<button> Buy`");
+    expect(md).toContain("make primary");
+  });
+
+  it("renders region pin with Container/Contains/Size lines", () => {
+    const md = composeMarkdown("/home", [regionPin]);
+    expect(md).toContain("## Pin #1");
+    expect(md).toContain("**Container:** `<section> About us`");
+    expect(md).toContain("**Contains:** `<h2>, <p>, <button> ×2`");
+    expect(md).toContain("**Size:** 320×180 at (140, 480)");
+    expect(md).toContain("2-col grid on desktop");
+    expect(md).not.toContain("**Target:**");
+  });
+
+  it("treats undefined kind as point pin (legacy)", () => {
+    const legacy = { id: "l1", x: 0, y: 0, target: "<a>", note: "", ts: 0 };
+    const md = composeMarkdown("/home", [legacy]);
+    expect(md).toContain("**Target:** `<a>`");
+    expect(md).not.toContain("**Container:**");
+  });
+
+  it("numbers mixed pins sequentially", () => {
+    const md = composeMarkdown("/home", [pointPin, regionPin, pointPin]);
+    expect(md).toMatch(/## Pin #1[\s\S]*## Pin #2[\s\S]*## Pin #3/);
+  });
+
+  it("handles region pin with empty note", () => {
+    const md = composeMarkdown("/home", [{ ...regionPin, note: "" }]);
+    expect(md).toContain("**Note:** _(empty)_");
   });
 });

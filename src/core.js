@@ -66,10 +66,18 @@ export function composeMarkdown(pathname, pins) {
   lines.push(`# Feedback on ${safePath}`, "");
   lines.push(`Total pins: ${pins.length}`, "");
   pins.forEach((pin, i) => {
-    const target = singleLine(pin.target).slice(0, TARGET_MAX);
     const note = stripControl(pin.note).slice(0, NOTE_MAX);
     lines.push(`## Pin #${i + 1}`);
-    lines.push(`**Target:** ${target ? inlineCode(target) : "_(unknown)_"}`);
+    if (pin.kind === "region") {
+      const container = singleLine(pin.target).slice(0, TARGET_MAX);
+      const contains = singleLine(pin.contains || "").slice(0, TARGET_MAX);
+      lines.push(`**Container:** ${container ? inlineCode(container) : "_(unknown)_"}`);
+      lines.push(`**Contains:** ${contains ? inlineCode(contains) : "_(empty)_"}`);
+      lines.push(`**Size:** ${pin.w}×${pin.h} at (${pin.x}, ${pin.y})`);
+    } else {
+      const target = singleLine(pin.target).slice(0, TARGET_MAX);
+      lines.push(`**Target:** ${target ? inlineCode(target) : "_(unknown)_"}`);
+    }
     if (note) {
       const fence = fenceFor(note);
       lines.push(`**Note:**`);
@@ -82,4 +90,26 @@ export function composeMarkdown(pathname, pins) {
     lines.push("");
   });
   return lines.join("\n").trimEnd() + "\n";
+}
+
+const CONTAINS_CAP = 8;
+
+export function summarizeContainsList(tags) {
+  if (!Array.isArray(tags) || tags.length === 0) return "(empty region)";
+  const counts = new Map();
+  for (const tag of tags) {
+    if (typeof tag !== "string" || tag.length === 0) continue;
+    counts.set(tag, (counts.get(tag) || 0) + 1);
+  }
+  if (counts.size === 0) return "(empty region)";
+  const entries = Array.from(counts.entries());
+  const visible = entries.slice(0, CONTAINS_CAP);
+  const overflow = entries.length - CONTAINS_CAP;
+  const parts = visible.map(([tag, n]) => (n > 1 ? `<${tag}> ×${n}` : `<${tag}>`));
+  if (overflow > 0) parts.push(`+${overflow} more`);
+  return parts.join(", ");
+}
+
+export function makeSeenKey(namespace, pathname) {
+  return `feedback-to-cli:${namespace}:${pathname}:seen`;
 }
