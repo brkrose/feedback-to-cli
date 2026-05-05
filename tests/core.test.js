@@ -191,3 +191,15 @@ describe("summarizeContainsList", () => {
     expect(summarizeContainsList(["h2", null, undefined, "p"])).toBe("<h2>, <p>");
   });
 });
+
+describe("makeSeenKey", () => {
+  it("formats namespace + pathname + :seen suffix", () => {
+    expect(makeSeenKey("default", "/home")).toBe("feedback-to-cli:default:/home:seen");
+  });
+  it("does not collide with the pins key", () => {
+    const seen = makeSeenKey("app", "/about");
+    const pins = makeKey("app", "/about");
+    expect(seen).not.toBe(pins);
+    expect(seen.startsWith(pins)).toBe(true);
+  });
+});
