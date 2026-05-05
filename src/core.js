@@ -83,3 +83,25 @@ export function composeMarkdown(pathname, pins) {
   });
   return lines.join("\n").trimEnd() + "\n";
 }
+
+const CONTAINS_CAP = 8;
+
+export function summarizeContainsList(tags) {
+  if (!Array.isArray(tags) || tags.length === 0) return "(empty region)";
+  const counts = new Map();
+  for (const tag of tags) {
+    if (typeof tag !== "string" || tag.length === 0) continue;
+    counts.set(tag, (counts.get(tag) || 0) + 1);
+  }
+  if (counts.size === 0) return "(empty region)";
+  const entries = Array.from(counts.entries());
+  const visible = entries.slice(0, CONTAINS_CAP);
+  const overflow = entries.length - CONTAINS_CAP;
+  const parts = visible.map(([tag, n]) => (n > 1 ? `<${tag}> ×${n}` : `<${tag}>`));
+  if (overflow > 0) parts.push(`+${overflow} more`);
+  return parts.join(", ");
+}
+
+export function makeSeenKey(namespace, pathname) {
+  return `feedback-to-cli:${namespace}:${pathname}:seen`;
+}

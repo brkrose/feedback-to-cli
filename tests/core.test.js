@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { slugForPath, makeKey, upsertPin, deletePin, composeMarkdown } from "../src/core.js";
+import { slugForPath, makeKey, upsertPin, deletePin, composeMarkdown, summarizeContainsList, makeSeenKey } from "../src/core.js";
 
 describe("slugForPath", () => {
   it("returns 'root' for /", () => {
@@ -167,5 +167,27 @@ describe("composeMarkdown sanitization", () => {
     ];
     const md = composeMarkdown("/home", pins);
     expect(md).toMatch(/\*\*Target:\*\* ``[^\n]*<code>`evil`[^\n]*``/);
+  });
+});
+
+describe("summarizeContainsList", () => {
+  it("returns '(empty region)' for empty input", () => {
+    expect(summarizeContainsList([])).toBe("(empty region)");
+  });
+  it("formats a single tag", () => {
+    expect(summarizeContainsList(["h2"])).toBe("<h2>");
+  });
+  it("dedupes identical tags with ×N suffix", () => {
+    expect(summarizeContainsList(["button", "button", "button"])).toBe("<button> ×3");
+  });
+  it("preserves first-seen order across mixed tags", () => {
+    expect(summarizeContainsList(["h2", "p", "button", "button"])).toBe("<h2>, <p>, <button> ×2");
+  });
+  it("caps at 8 unique tags with '+N more' overflow", () => {
+    const tags = ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"];
+    expect(summarizeContainsList(tags)).toBe("<a>, <b>, <c>, <d>, <e>, <f>, <g>, <h>, +2 more");
+  });
+  it("ignores non-string entries", () => {
+    expect(summarizeContainsList(["h2", null, undefined, "p"])).toBe("<h2>, <p>");
   });
 });
