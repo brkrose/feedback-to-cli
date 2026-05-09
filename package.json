@@ -1,6 +1,6 @@
 {
   "name": "feedback-to-cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Click-to-pin feedback overlay for any localhost page. Drop in a script tag, copy markdown to your AI CLI.",
   "type": "module",
   "main": "./dist/feedback-to-cli.js",

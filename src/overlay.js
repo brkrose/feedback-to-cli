@@ -227,7 +227,7 @@
 
       ".f2c-popover {",
       "  position: absolute; z-index: 9999;",
-      "  width: 280px; background: white;",
+      "  width: 280px; background: white; color: #0a0a0a;",
       "  border: 2px solid #0a0a0a;",
       "  box-shadow: 4px 4px 0 #4f2d65;",
       "  padding: 12px;",
@@ -264,7 +264,7 @@
       "  font: 700 10px 'JetBrains Mono', monospace;",
       "  text-transform: uppercase; letter-spacing: 0.06em;",
       "  padding: 5px 10px; border: 2px solid #0a0a0a;",
-      "  background: white; cursor: pointer;",
+      "  background: white; color: #0a0a0a; cursor: pointer;",
       "  box-shadow: 2px 2px 0 #0a0a0a;",
       "}",
       ".f2c-popover button.f2c-save { background: #d8e8d3; }",
