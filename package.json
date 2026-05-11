@@ -9,7 +9,7 @@
   },
   "unpkg": "dist/feedback-to-cli.js",
   "bin": {
-    "feedback-to-cli": "./bin/cli.js"
+    "feedback-to-cli": "bin/cli.js"
   },
   "files": [
     "dist",
