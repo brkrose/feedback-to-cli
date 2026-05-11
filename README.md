@@ -4,7 +4,7 @@
 
 You're vibe-coding with Claude Code, Cursor, or Copilot CLI. You see something off in the browser. Today you screenshot it, describe it in words, paste. Lossy. Slow.
 
-`feedback-to-cli` collapses that to: **click on the thing → type a sentence → "copy all" → paste markdown back to your CLI.** With the optional companion process, the paste step disappears too.
+`feedback-to-cli` collapses that to: **click on the thing → type a sentence → "copy all" → paste markdown back to your CLI.** **With the companion process, the paste step disappears too. Just let your AI CLI that you've dropped in feedback, then it reads and incorporates it.**
 
 ---
 
