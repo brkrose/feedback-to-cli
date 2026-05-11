@@ -209,7 +209,7 @@
     style.id = "f2c-styles";
     style.textContent = [
       ".f2c-pin {",
-      "  position: absolute;",
+      "  position: fixed;",
       "  width: 26px; height: 26px;",
       "  background: #4f2d65; color: white;",
       "  border: 2px solid #0a0a0a;",
@@ -224,9 +224,17 @@
       "}",
       ".f2c-pin:hover { transform: translate(-13px, -13px) scale(1.15); }",
       ".f2c-pin.f2c-active { background: #ff7a2b; color: #0a0a0a; }",
+      ".f2c-pin.f2c-orphaned, .f2c-region.f2c-orphaned { opacity: 0.45; }",
+      ".f2c-pin.f2c-orphaned::after, .f2c-region-tag.f2c-orphaned::after {",
+      "  content: '?'; position: absolute; top: -8px; right: -8px;",
+      "  width: 14px; height: 14px; border-radius: 50%;",
+      "  background: #ff7a2b; color: #0a0a0a; border: 2px solid #0a0a0a;",
+      "  font: 700 9px 'JetBrains Mono', monospace;",
+      "  display: flex; align-items: center; justify-content: center;",
+      "}",
 
       ".f2c-popover {",
-      "  position: absolute; z-index: 9999;",
+      "  position: fixed; z-index: 9999;",
       "  width: 280px; background: white; color: #0a0a0a;",
       "  border: 2px solid #0a0a0a;",
       "  box-shadow: 4px 4px 0 #4f2d65;",
@@ -313,20 +321,19 @@
       "}",
 
       ".f2c-pin-layer {",
-      "  position: absolute; top: 0; left: 0;",
-      "  width: 100%; height: 100%;",
+      "  position: fixed; inset: 0;",
       "  pointer-events: none; z-index: 9998;",
       "}",
 
       ".f2c-region {",
-      "  position: absolute; z-index: 9997;",
+      "  position: fixed; z-index: 9997;",
       "  border: 2px dashed #4f2d65;",
       "  background: rgba(79, 45, 101, 0.12);",
       "  pointer-events: none;",
       "  box-sizing: border-box;",
       "}",
       ".f2c-region-preview {",
-      "  position: absolute; z-index: 9997;",
+      "  position: fixed; z-index: 9997;",
       "  border: 2px dashed #4f2d65;",
       "  background: rgba(79, 45, 101, 0.12);",
       "  pointer-events: none;",
@@ -367,6 +374,107 @@
     return "<" + tag + "> " + txt + suffix;
   }
 
+  function cssEscape(s) {
+    if (typeof CSS !== "undefined" && CSS.escape) return CSS.escape(s);
+    return String(s).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
+  }
+
+  function usableId(el) {
+    return !!(
+      el && el.id &&
+      !/^\d/.test(el.id) &&
+      el.id.indexOf("f2c-") !== 0
+    );
+  }
+
+  function buildSelector(el) {
+    if (!el || el.nodeType !== 1) return "body";
+    if (el === document.body || el === document.documentElement) return "body";
+    if (typeof el.getRootNode === "function" && el.getRootNode() !== document) return null;
+    if (usableId(el)) {
+      var sel = "#" + cssEscape(el.id);
+      try { if (document.querySelector(sel) === el) return sel; } catch (_) {}
+    }
+    var parts = [];
+    var node = el;
+    while (node && node.nodeType === 1 && node !== document.body) {
+      var parent = node.parentElement;
+      if (!parent) break;
+      if (usableId(node)) {
+        var idSel = "#" + cssEscape(node.id);
+        try {
+          if (document.querySelector(idSel) === node) {
+            parts.unshift(idSel);
+            return parts.join(" > ");
+          }
+        } catch (_) {}
+      }
+      var tag = node.tagName.toLowerCase();
+      var siblings = Array.prototype.filter.call(
+        parent.children,
+        function (c) { return c.tagName === node.tagName; }
+      );
+      if (siblings.length === 1) {
+        parts.unshift(tag);
+      } else {
+        var idx = siblings.indexOf(node) + 1;
+        parts.unshift(tag + ":nth-of-type(" + idx + ")");
+      }
+      node = parent;
+    }
+    parts.unshift("body");
+    return parts.join(" > ");
+  }
+
+  function captureAnchor(pageX, pageY, el) {
+    var target = el && el.nodeType === 1 ? el : document.body;
+    if (target.closest && target.closest(OVERLAY_SELECTOR)) target = document.body;
+    var selector = buildSelector(target);
+    if (!selector) return null;
+    var rect = target.getBoundingClientRect();
+    var sx = window.scrollX || 0;
+    var sy = window.scrollY || 0;
+    return {
+      selector: selector,
+      offsetX: pageX - (rect.left + sx),
+      offsetY: pageY - (rect.top + sy),
+    };
+  }
+
+  function resolveAnchorEl(anchor) {
+    if (!anchor || !anchor.selector) return null;
+    try {
+      var el = document.querySelector(anchor.selector);
+      if (!el) return null;
+      if (el.closest && el.closest(OVERLAY_SELECTOR)) return null;
+      return el;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function getViewportPos(pin) {
+    var anchorEl = pin.anchor ? resolveAnchorEl(pin.anchor) : null;
+    if (anchorEl) {
+      var rect = anchorEl.getBoundingClientRect();
+      var hasSize = rect.width > 0 || rect.height > 0;
+      if (hasSize || anchorEl === document.body) {
+        return {
+          left: rect.left + (pin.anchor.offsetX || 0),
+          top: rect.top + (pin.anchor.offsetY || 0),
+          orphaned: false,
+        };
+      }
+    }
+    var sx = window.scrollX || 0;
+    var sy = window.scrollY || 0;
+    return {
+      left: (pin.x || 0) - sx,
+      top: (pin.y || 0) - sy,
+      orphaned: !!pin.anchor,
+    };
+  }
+
   function genId() {
     if (typeof crypto !== "undefined" && crypto.randomUUID) {
       return crypto.randomUUID();
@@ -392,8 +500,10 @@
     var el = document.createElement("div");
     el.className = "f2c-pin";
     el.textContent = "#";
-    el.style.left = pin.x + "px";
-    el.style.top = pin.y + "px";
+    var pos = getViewportPos(pin);
+    el.style.left = pos.left + "px";
+    el.style.top = pos.top + "px";
+    if (pos.orphaned) el.classList.add("f2c-orphaned");
     el.title = pin.note || "(no note)";
     el.dataset.id = pin.id;
     el.style.pointerEvents = "all";
@@ -411,16 +521,15 @@
 
     var pop = document.createElement("div");
     pop.className = "f2c-popover";
-    var anchorX = pin.x;
-    var anchorY = pin.y;
-    pop.style.left = anchorX + "px";
-    pop.style.top = anchorY + "px";
+    pop.dataset.id = pin.id;
+    var pos = getViewportPos(pin);
+    pop.style.left = pos.left + "px";
+    pop.style.top = pos.top + "px";
 
     var POPOVER_WIDTH = 280;
     var GAP = 8;
     var viewportRight = (typeof window !== "undefined" ? window.innerWidth : 1000);
-    var scrollX = (typeof window !== "undefined" ? window.scrollX || 0 : 0);
-    if (anchorX + GAP + POPOVER_WIDTH > scrollX + viewportRight) {
+    if (pos.left + GAP + POPOVER_WIDTH > viewportRight) {
       pop.classList.add("f2c-popover-flip");
     }
 
@@ -497,13 +606,16 @@
     var box = document.createElement("div");
     box.className = "f2c-region";
     box.dataset.id = pin.id;
-    box.style.left = pin.x + "px";
-    box.style.top = pin.y + "px";
+    var pos = getViewportPos(pin);
+    box.style.left = pos.left + "px";
+    box.style.top = pos.top + "px";
     box.style.width = pin.w + "px";
     box.style.height = pin.h + "px";
+    if (pos.orphaned) box.classList.add("f2c-orphaned");
 
     var tag = document.createElement("div");
     tag.className = "f2c-region-tag";
+    if (pos.orphaned) tag.classList.add("f2c-orphaned");
     tag.dataset.id = pin.id;
     tag.textContent = "#" + n;
     tag.title = pin.note || "(no note)";
@@ -623,6 +735,54 @@
     document.addEventListener("pointerup", handlePointerUp);
     document.addEventListener("pointercancel", handlePointerCancel);
     document.addEventListener("keydown", handleDocKeydown);
+    window.addEventListener("scroll", scheduleReposition, true);
+    window.addEventListener("resize", scheduleReposition);
+  }
+
+  var rafScheduled = false;
+  function scheduleReposition() {
+    if (rafScheduled) return;
+    rafScheduled = true;
+    var raf = (typeof requestAnimationFrame === "function")
+      ? requestAnimationFrame
+      : function (fn) { return setTimeout(fn, 16); };
+    raf(function () {
+      rafScheduled = false;
+      reposition();
+    });
+  }
+
+  function reposition() {
+    if (!pinLayer) return;
+    pins.forEach(function (pin) {
+      var sel =
+        '.f2c-pin[data-id="' + pin.id + '"], .f2c-region[data-id="' + pin.id + '"]';
+      var el = pinLayer.querySelector(sel);
+      if (!el) return;
+      var pos = getViewportPos(pin);
+      el.style.left = pos.left + "px";
+      el.style.top = pos.top + "px";
+      el.classList.toggle("f2c-orphaned", pos.orphaned);
+      if (el.classList.contains("f2c-region")) {
+        var innerTag = el.querySelector(".f2c-region-tag");
+        if (innerTag) innerTag.classList.toggle("f2c-orphaned", pos.orphaned);
+      }
+    });
+    if (activePopoverId !== null) {
+      var activePin = null;
+      for (var i = 0; i < pins.length; i++) {
+        if (pins[i].id === activePopoverId) { activePin = pins[i]; break; }
+      }
+      var pop = document.querySelector(
+        '.f2c-popover[data-id="' + activePopoverId + '"]'
+      );
+      if (activePin && pop) {
+        var popPos = getViewportPos(activePin);
+        pop.style.left = popPos.left + "px";
+        pop.style.top = popPos.top + "px";
+      }
+    }
+    drawPreview();
   }
 
   var DRAG_THRESHOLD = 6;
@@ -669,8 +829,17 @@
       pinLayer.appendChild(previewEl);
     }
     var box = normalizeBox(dragState.startX, dragState.startY, e.pageX || 0, e.pageY || 0);
-    previewEl.style.left = box.x + "px";
-    previewEl.style.top = box.y + "px";
+    dragState.previewBox = box;
+    drawPreview();
+  }
+
+  function drawPreview() {
+    if (!previewEl || !dragState || !dragState.previewBox) return;
+    var box = dragState.previewBox;
+    var sx = window.scrollX || 0;
+    var sy = window.scrollY || 0;
+    previewEl.style.left = (box.x - sx) + "px";
+    previewEl.style.top = (box.y - sy) + "px";
     previewEl.style.width = box.w + "px";
     previewEl.style.height = box.h + "px";
   }
@@ -763,7 +932,7 @@
       node = walker.nextNode();
     }
     if (matches.length === 0) {
-      return { container: "<body>", contains: "(empty region)" };
+      return { commonEl: document.body, container: "<body>", contains: "(empty region)" };
     }
     var common = closestCommonAncestor(matches);
     var directChildren = matches.filter(function (el) {
@@ -774,6 +943,7 @@
       return el.tagName ? el.tagName.toLowerCase() : "";
     });
     return {
+      commonEl: common,
       container: targetSummary(common),
       contains: summarizeContainsList(tags),
     };
@@ -790,6 +960,7 @@
       h: box.h,
       target: capture.container,
       contains: capture.contains,
+      anchor: captureAnchor(box.x, box.y, capture.commonEl || document.body),
       note: "",
       ts: Date.now(),
       kind: "region",
@@ -812,6 +983,7 @@
       x: x,
       y: y,
       target: target,
+      anchor: captureAnchor(x, y, targetEl || document.body),
       note: "",
       ts: Date.now(),
       kind: "point",
