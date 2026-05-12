@@ -35,6 +35,7 @@
   ],
   "author": "Brooke Bekoff",
   "license": "MIT",
+  "homepage": "https://brooke-builds-stuff.com",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/brkrose/feedback-to-cli.git"

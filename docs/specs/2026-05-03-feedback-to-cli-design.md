@@ -172,7 +172,7 @@ No theming, no positioning, no programmatic API. Toolbar always bottom-right; pi
 1. **Repo:** create `brkrose/feedback-to-cli` public, MIT.
 2. **First release:** `0.1.0` on npm, auto-mirrored to `https://unpkg.com/feedback-to-cli`.
 3. **README:** screencast gif (place a pin, copy markdown, paste in Claude Code), one-line install, the "to-CLI" pitch.
-4. **Soft launch:** post in vibe-coding circles (X, Hacker News Show HN, indie-hackers). Cross-link from `brookebuilds.stuff` portfolio.
+4. **Soft launch:** post in vibe-coding circles (X, Hacker News Show HN, indie-hackers). Cross-link from `brooke-builds-stuff.com` portfolio.
 
 ---
 
