@@ -1,6 +1,6 @@
 # feedback-to-cli
 
-> Click-to-pin feedback on any localhost page. Copy the markdown straight to your AI CLI.
+> Click-to-pin feedback on any localhost page. Feedback goes directly to your AI CLI, or option to copy as markdown.
 
 ![feedback-to-cli demo](./demo.gif)
 
