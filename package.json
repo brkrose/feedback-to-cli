@@ -38,7 +38,7 @@
   "homepage": "https://brooke-builds-stuff.com",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/brkrose/feedback-to-cli.git"
+    "url": "git+https://github.com/brookebuildsstuff/feedback-to-cli.git"
   },
   "engines": {
     "node": ">=20"
